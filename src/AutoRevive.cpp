@@ -2,6 +2,8 @@
 #include "Common.h"
 #include "Configuration/Config.h"
 #include "Player.h"
+#include "DatabaseEnv.h"
+#include "Map.h"
 #include "ScriptMgr.h"
 
 uint32 TimeCheck_AutoRevive = 0;
@@ -21,6 +23,10 @@ public:
         if (AccountMgr::IsPlayerAccount(player->GetSession()->GetSecurity()))
             return;
 
+        // FamWoW m22: never in battlegrounds, arenas or for hardcore (SeasonPass) characters
+        if (player->InBattleground() || player->InArena() || (player->GetMap() && player->GetMap()->IsBattlegroundOrArena()))
+            return;
+
         uint32 NowHealth = player->GetHealth();
         uint32 TimeCheck = 1000;
         uint32 zoneid_conf = sConfigMgr->GetOption<uint16>("AutoRevive.ZoneID", 0);
@@ -30,6 +36,11 @@ public:
         {
             if (NowHealth <= 1)
             {
+                if (CharacterDatabase.Query("SELECT 1 FROM character_seasonpass WHERE guid = {} AND hardcore <> 0 LIMIT 1", player->GetGUID().GetCounter()))
+                {
+                    TimeCheck_AutoRevive = TimeCheck;
+                    return;
+                }
                 if (zoneid_conf > 0)
                 {
                     if (zoneid_conf == zoneid)
